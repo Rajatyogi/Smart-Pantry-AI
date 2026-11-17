@@ -1,0 +1,93 @@
+{
+  "users": [
+    {
+      "name": "Rajat",
+      "email": "rajat@test.com",
+      "password": "$2a$10$xbgOK1q6a8ZvaLI6PTkTy.phhSCro0dD1U.dWL7SFMoC9vR9NuF06",
+      "_id": "mwksb98q9giro"
+    }
+  ],
+  "items": [
+    {
+      "userId": "mwksb98q9giro",
+      "name": "Milk",
+      "quantity": 5,
+      "unit": "pcs",
+      "category": "Dairy",
+      "expiry": "2026-11-24",
+      "_id": "mwksc5fut7tvd"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "banana",
+      "quantity": 5,
+      "unit": "pcs",
+      "category": "Fruits",
+      "expiry": "2026-11-19",
+      "_id": "mwkscwx047edf"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "tomato",
+      "quantity": 4,
+      "unit": "pcs",
+      "category": "Vegetables",
+      "expiry": "2026-11-18",
+      "_id": "mwksdhf9le6sg"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "potato",
+      "quantity": 4,
+      "unit": "pcs",
+      "category": "Vegetables",
+      "expiry": "2026-11-19",
+      "_id": "mwksdu1o3c5iy"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "papaya",
+      "quantity": 2,
+      "unit": "pcs",
+      "category": "Fruits",
+      "expiry": "2026-11-20",
+      "_id": "mwksedhx6ukwd"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "orange",
+      "quantity": 5,
+      "unit": "kg",
+      "category": "Fruits",
+      "expiry": "2026-11-22",
+      "_id": "mwksf0r2olcaf"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "Apple",
+      "quantity": 3,
+      "unit": "kg",
+      "category": "Vegetables",
+      "expiry": "2026-11-20",
+      "_id": "mwksvotwewbdw"
+    },
+    {
+      "userId": "mwksb98q9giro",
+      "name": "Chips",
+      "quantity": 1,
+      "unit": "packet",
+      "category": "Snacks",
+      "expiry": "2026-11-18",
+      "_id": "mwkzz5fwzd3pz"
+    }
+  ],
+  "shopping": [
+    {
+      "userId": "mwksb98q9giro",
+      "name": "Chips",
+      "bought": false,
+      "reason": "Running low",
+      "_id": "mwl001z0tv6fk"
+    }
+  ]
+}

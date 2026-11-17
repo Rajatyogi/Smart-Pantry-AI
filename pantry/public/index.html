@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pantry</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone@7.24.7/babel.min.js"></script>
+</head>
+<body class="bg-green-50 min-h-screen text-gray-800">
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect } = React;
+
+// ---------- Helpers ----------
+async function api(path, method = 'GET', body) {
+  const res = await fetch('/api' + path, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + (localStorage.getItem('token') || '') },
+    body: body ? JSON.stringify(body) : undefined
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Something went wrong');
+  return data;
+}
+// Days left until expiry (negative = already expired)
+const daysLeft = d => Math.round((new Date(d + 'T00:00:00') - new Date(new Date().toDateString())) / 86400000);
+const addDays = n => { const d = new Date(); d.setDate(d.getDate() + n); return d.toLocaleDateString('en-CA'); };
+const badge = d => d < 0 ? ['Expired', 'bg-red-100 text-red-700']
+  : d <= 3 ? [d + ' day(s) left', 'bg-yellow-100 text-yellow-700']
+  : [d + ' days left', 'bg-green-100 text-green-700'];
+const CATEGORIES = ['Vegetables', 'Fruits', 'Dairy', 'Grains', 'Spices', 'Snacks', 'Other'];
+const inp = 'border border-gray-300 rounded-lg px-3 py-2 w-full focus:outline-none focus:ring-2 focus:ring-green-400';
+const btn = 'bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg px-4 py-2';
+const card = 'bg-white rounded-2xl shadow p-5';
+
+// ---------- Login / Signup ----------
+function Auth({ onLogin }) {
+  const [mode, setMode] = useState('login');
+  const [f, setF] = useState({ name: '', email: '', password: '' });
+  const [err, setErr] = useState('');
+  const submit = async e => {
+    e.preventDefault(); setErr('');
+    try {
+      const d = await api(mode === 'login' ? '/login' : '/signup', 'POST', f);
+      localStorage.setItem('token', d.token); localStorage.setItem('name', d.name);
+      onLogin();
+    } catch (x) { setErr(x.message); }
+  };
+  return (
+    <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-green-100 to-green-300">
+      <form onSubmit={submit} className="bg-white p-8 rounded-2xl shadow-xl w-full max-w-sm space-y-3">
+        <div className="text-center"><div className="text-5xl">🥗</div>
+          <h1 className="text-2xl font-bold text-green-700">Pantry</h1>
+          <p className="text-sm text-gray-500">Intelligent Kitchen Inventory & Meal Planner</p></div>
+        {mode === 'signup' && <input className={inp} placeholder="Your name" value={f.name} onChange={e => setF({ ...f, name: e.target.value })} />}
+        <input className={inp} type="email" placeholder="Email" value={f.email} onChange={e => setF({ ...f, email: e.target.value })} />
+        <input className={inp} type="password" placeholder="Password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} />
+        {err && <p className="text-red-600 text-sm">{err}</p>}
+        <button className={btn + ' w-full'}>{mode === 'login' ? 'Login' : 'Create account'}</button>
+        <p className="text-center text-sm text-gray-600">
+          {mode === 'login' ? 'New here? ' : 'Already have an account? '}
+          <a href="#" className="text-green-700 font-semibold" onClick={e => { e.preventDefault(); setMode(mode === 'login' ? 'signup' : 'login'); setErr(''); }}>
+            {mode === 'login' ? 'Sign up' : 'Login'}</a></p>
+      </form>
+    </div>
+  );
+}
+
+// ---------- Dashboard (analytics + reminders) ----------
+function Dashboard({ items }) {
+  const expired = items.filter(i => daysLeft(i.expiry) < 0);
+  const soon = items.filter(i => { const d = daysLeft(i.expiry); return d >= 0 && d <= 3; });
+  const cats = {}; items.forEach(i => cats[i.category] = (cats[i.category] || 0) + 1);
+  const max = Math.max(1, ...Object.values(cats));
+  const notify = () => {
+    if ('Notification' in window && Notification.permission === 'granted' && soon.length)
+      new Notification('Pantry reminder', { body: soon.map(i => i.name).join(', ') + ' expiring soon!' });
+  };
+  useEffect(notify, [soon.length]);
+  const enable = () => { if ('Notification' in window) Notification.requestPermission().then(notify); };
+  const stat = (label, value, color) => (
+    <div className={card + ' text-center'}><div className={'text-3xl font-bold ' + color}>{value}</div><div className="text-sm text-gray-500">{label}</div></div>);
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {stat('Total items', items.length, 'text-green-700')}
+        {stat('Expiring in 3 days', soon.length, 'text-yellow-600')}
+        {stat('Expired', expired.length, 'text-red-600')}
+        {stat('Categories', Object.keys(cats).length, 'text-blue-600')}
+      </div>
+      <div className={card}>
+        <div className="flex justify-between items-center mb-2">
+          <h2 className="font-bold text-lg">⏰ Reminders</h2>
+          <button className="text-sm text-green-700 underline" onClick={enable}>Enable browser alerts</button></div>
+        {soon.length + expired.length === 0 && <p className="text-gray-500">All good! Nothing is expiring soon.</p>}
+        {expired.map(i => <p key={i._id} className="text-red-600">❌ {i.name} has expired. Throw it away.</p>)}
+        {soon.map(i => <p key={i._id} className="text-yellow-700">⚠️ {i.name} expires in {daysLeft(i.expiry)} day(s). Use it soon!</p>)}
+      </div>
+      <div className={card}>
+        <h2 className="font-bold text-lg mb-3">📊 Pantry by category</h2>
+        {Object.keys(cats).length === 0 && <p className="text-gray-500">No data yet. Add items in the Pantry tab.</p>}
+        {Object.entries(cats).map(([c, n]) => (
+          <div key={c} className="flex items-center gap-3 mb-2">
+            <span className="w-24 text-sm">{c}</span>
+            <div className="flex-1 bg-gray-100 rounded h-4"><div className="bg-green-500 h-4 rounded" style={{ width: (n / max * 100) + '%' }}></div></div>
+            <span className="text-sm w-6">{n}</span>
+          </div>))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Pantry (add, store, track expiry) ----------
+function Pantry({ items, reload }) {
+  const empty = { name: '', quantity: 1, unit: 'pcs', category: 'Vegetables', expiry: addDays(7) };
+  const [f, setF] = useState(empty);
+  const [err, setErr] = useState('');
+  const add = async e => {
+    e.preventDefault(); setErr('');
+    try { await api('/items', 'POST', f); setF(empty); reload(); } catch (x) { setErr(x.message); }
+  };
+  const change = async (i, q) => { if (q < 0) return; await api('/items/' + i._id, 'PUT', { quantity: q }); reload(); };
+  const remove = async i => { await api('/items/' + i._id, 'DELETE'); reload(); };
+  const addSamples = async () => {
+    const s = [['Milk', 1, 'litre', 'Dairy', 2], ['Tomato', 5, 'pcs', 'Vegetables', 4], ['Rice', 2, 'kg', 'Grains', 200],
+      ['Spinach', 1, 'bunch', 'Vegetables', 1], ['Bread', 1, 'pack', 'Snacks', -1], ['Paneer', 250, 'g', 'Dairy', 6]];
+    for (const [name, quantity, unit, category, d] of s) await api('/items', 'POST', { name, quantity, unit, category, expiry: addDays(d) });
+    reload();
+  };
+  const sorted = [...items].sort((a, b) => a.expiry.localeCompare(b.expiry));
+  return (
+    <div className="space-y-4">
+      <form onSubmit={add} className={card + ' grid grid-cols-2 md:grid-cols-6 gap-3 items-end'}>
+        <div className="col-span-2"><label className="text-sm">Item name</label><input className={inp} value={f.name} onChange={e => setF({ ...f, name: e.target.value })} placeholder="e.g. Milk" /></div>
+        <div><label className="text-sm">Quantity</label><input className={inp} type="number" min="0" value={f.quantity} onChange={e => setF({ ...f, quantity: e.target.value })} /></div>
+        <div><label className="text-sm">Unit</label><input className={inp} value={f.unit} onChange={e => setF({ ...f, unit: e.target.value })} /></div>
+        <div><label className="text-sm">Category</label>
+          <select className={inp} value={f.category} onChange={e => setF({ ...f, category: e.target.value })}>{CATEGORIES.map(c => <option key={c}>{c}</option>)}</select></div>
+        <div><label className="text-sm">Expiry date</label><input className={inp} type="date" value={f.expiry} onChange={e => setF({ ...f, expiry: e.target.value })} /></div>
+        <button className={btn + ' col-span-2 md:col-span-6'}>+ Add to pantry</button>
+        {err && <p className="text-red-600 text-sm col-span-full">{err}</p>}
+      </form>
+      <div className={card}>
+        <h2 className="font-bold text-lg mb-3">🧺 My pantry ({items.length})</h2>
+        {items.length === 0 && <div><p className="text-gray-500 mb-2">Your pantry is empty.</p><button className={btn} onClick={addSamples}>Add sample items</button></div>}
+        {sorted.map(i => { const [text, cls] = badge(daysLeft(i.expiry)); return (
+          <div key={i._id} className="flex flex-wrap items-center gap-3 border-b py-2">
+            <div className="flex-1 min-w-[140px]"><div className="font-semibold">{i.name}</div><div className="text-xs text-gray-500">{i.category} • expires {i.expiry}</div></div>
+            <span className={'text-xs px-2 py-1 rounded-full ' + cls}>{text}</span>
+            <div className="flex items-center gap-2">
+              <button className="w-7 h-7 rounded bg-gray-200" onClick={() => change(i, i.quantity - 1)}>-</button>
+              <span className="w-20 text-center text-sm">{i.quantity} {i.unit}</span>
+              <button className="w-7 h-7 rounded bg-gray-200" onClick={() => change(i, i.quantity + 1)}>+</button></div>
+            <button className="text-red-500 text-sm" onClick={() => remove(i)}>Delete</button>
+          </div>); })}
+      </div>
+    </div>
+  );
+}
+
+// ---------- AI Recipes ----------
+function Recipes() {
+  const [data, setData] = useState(null); const [busy, setBusy] = useState(false); const [err, setErr] = useState('');
+  const go = async () => {
+    setBusy(true); setErr('');
+    try { setData(await api('/recipes', 'POST')); } catch (x) { setErr(x.message); }
+    setBusy(false);
+  };
+  return (
+    <div className="space-y-4">
+      <div className={card + ' flex flex-wrap items-center gap-3 justify-between'}>
+        <div><h2 className="font-bold text-lg">🍳 AI recipe suggestions</h2><p className="text-sm text-gray-500">Recipes based on what is in your pantry (items expiring first are used first).</p></div>
+        <button className={btn} onClick={go} disabled={busy}>{busy ? 'Thinking...' : 'Suggest recipes'}</button>
+      </div>
+      {err && <p className="text-red-600">{err}</p>}
+      {data && <p className="text-xs text-gray-500">Source: {data.source}</p>}
+      <div className="grid md:grid-cols-3 gap-4">
+        {data && data.recipes.map((r, k) => (
+          <div key={k} className={card}>
+            <h3 className="font-bold text-green-700">{r.title}</h3>
+            <p className="text-xs text-gray-500 mb-2">⏱ {r.time}</p>
+            <p className="text-sm font-semibold">Ingredients</p>
+            <p className="text-sm mb-2">{r.ingredients.join(', ')}</p>
+            <p className="text-sm font-semibold">Steps</p>
+            <ol className="list-decimal ml-5 text-sm">{r.steps.map((s, j) => <li key={j}>{s}</li>)}</ol>
+          </div>))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Smart shopping list ----------
+function Shopping() {
+  const [list, setList] = useState([]); const [name, setName] = useState('');
+  const load = async () => setList(await api('/shopping'));
+  useEffect(() => { load(); }, []);
+  const add = async e => { e.preventDefault(); if (!name.trim()) return; await api('/shopping', 'POST', { name }); setName(''); load(); };
+  const toggle = async s => { await api('/shopping/' + s._id, 'PUT', { bought: !s.bought }); load(); };
+  const remove = async s => { await api('/shopping/' + s._id, 'DELETE'); load(); };
+  const generate = async () => setList(await api('/shopping/generate', 'POST'));
+  return (
+    <div className="space-y-4">
+      <div className={card + ' space-y-3'}>
+        <div className="flex flex-wrap justify-between items-center gap-2">
+          <h2 className="font-bold text-lg">🛒 Shopping list</h2>
+          <button className={btn} onClick={generate}>✨ Generate from pantry</button></div>
+        <p className="text-sm text-gray-500">Generate adds items that are expired or running low (quantity 1 or less).</p>
+        <form onSubmit={add} className="flex gap-2"><input className={inp} placeholder="Add an item manually" value={name} onChange={e => setName(e.target.value)} /><button className={btn}>Add</button></form>
+      </div>
+      <div className={card}>
+        {list.length === 0 && <p className="text-gray-500">Your shopping list is empty.</p>}
+        {list.map(s => (
+          <div key={s._id} className="flex items-center gap-3 border-b py-2">
+            <input type="checkbox" checked={!!s.bought} onChange={() => toggle(s)} />
+            <span className={'flex-1 ' + (s.bought ? 'line-through text-gray-400' : '')}>{s.name} <span className="text-xs text-gray-400">({s.reason})</span></span>
+            <button className="text-red-500 text-sm" onClick={() => remove(s)}>Delete</button>
+          </div>))}
+      </div>
+    </div>
+  );
+}
+
+// ---------- Main App ----------
+function App() {
+  const [loggedIn, setLoggedIn] = useState(!!localStorage.getItem('token'));
+  const [page, setPage] = useState('dashboard');
+  const [items, setItems] = useState([]);
+  const logout = () => { localStorage.clear(); setLoggedIn(false); };
+  const reload = async () => { try { setItems(await api('/items')); } catch (e) { logout(); } };
+  useEffect(() => { if (loggedIn) reload(); }, [loggedIn]);
+  if (!loggedIn) return <Auth onLogin={() => setLoggedIn(true)} />;
+  const tabs = [['dashboard', '📊 Dashboard'], ['pantry', '🧺 Pantry'], ['recipes', '🍳 Recipes'], ['shopping', '🛒 Shopping']];
+  return (
+    <div>
+      <div className="bg-green-700 text-white">
+        <div className="max-w-5xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-2">
+          <h1 className="text-xl font-bold">🥗 Pantry</h1>
+          <div className="flex items-center gap-3 text-sm"><span>Hi, {localStorage.getItem('name')}</span>
+            <button className="bg-green-900 px-3 py-1 rounded" onClick={logout}>Logout</button></div>
+        </div>
+      </div>
+      <div className="max-w-5xl mx-auto p-4 space-y-4">
+        <div className="flex gap-2 flex-wrap">
+          {tabs.map(([k, label]) => (
+            <button key={k} onClick={() => setPage(k)} className={'px-4 py-2 rounded-lg font-medium ' + (page === k ? 'bg-green-600 text-white' : 'bg-white text-gray-700 shadow')}>{label}</button>))}
+        </div>
+        {page === 'dashboard' && <Dashboard items={items} />}
+        {page === 'pantry' && <Pantry items={items} reload={reload} />}
+        {page === 'recipes' && <Recipes />}
+        {page === 'shopping' && <Shopping />}
+      </div>
+    </div>
+  );
+}
+ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+</script>
+</body>
+</html>
